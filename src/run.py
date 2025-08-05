@@ -181,73 +181,6 @@ def analyze_market():
                     'error': 'Falha na análise principal',
                     'message': str(e),
                     'dados_recuperados': True,
-                data,
-                session_id=session_id,
-                progress_callback=progress_callback
-            )
-            
-            # Salva resultado da análise imediatamente
-            salvar_etapa("analise_resultado", analysis_result, categoria="analise_completa")
-            
-            # VALIDAÇÃO FLEXÍVEL DO RESULTADO
-            logger.info("🔍 Validando qualidade da análise...")
-            from services.enhanced_validation_system import enhanced_validation_system
-            quality_validation = enhanced_validation_system.validate_with_progressive_tolerance(
-                analysis_result, session_id
-            )
-            
-            # Salva validação
-            salvar_etapa("validacao_qualidade", quality_validation, categoria="analise_completa")
-            
-            # Só rejeita se validação de emergência também falhar (muito raro)
-            if not quality_validation.get('valid', False) and not quality_validation.get('emergency_mode', False):
-                logger.error(f"❌ Análise rejeitada por baixa qualidade: {quality_validation['errors']}")
-                salvar_erro("validacao_falha", Exception("Análise rejeitada por baixa qualidade"), contexto=quality_validation)
-                
-                # Mesmo rejeitada, tenta salvar dados parciais
-                try:
-                    dados_parciais = auto_save_manager.consolidar_sessao(session_id)
-                    logger.info(f"💾 Dados parciais salvos: {dados_parciais}")
-                except Exception as save_error:
-                    logger.error(f"❌ Erro ao salvar dados parciais: {save_error}")
-                
-                return jsonify({
-                    'error': 'Análise de baixa qualidade rejeitada',
-                    'message': 'A análise gerada não atende aos critérios de qualidade',
-                    'quality_report': quality_validation,
-                    'recommendations': quality_validation.get('recommendations', []),
-                    'timestamp': datetime.now().isoformat(),
-                    'dados_parciais_salvos': True,
-                    'session_id': session_id
-                }), 422
-            else:
-                # Análise aprovada (mesmo que em nível de emergência)
-                logger.info(f"✅ Análise aprovada no nível {quality_validation.get('level', 'UNKNOWN')}")
-                
-                if quality_validation.get('emergency_mode'):
-                    logger.warning("⚠️ Análise aprovada em modo de emergência")
-            
-            # Limpa análise removendo componentes inválidos
-            analysis_result = enhanced_validation_system.clean_analysis_for_output_flexible(analysis_result)
-            
-            # Salva análise limpa
-            salvar_etapa("analise_limpa", analysis_result, categoria="analise_completa")
-            
-            logger.info(f"✅ Análise validada com score {quality_validation['quality_score']:.1f}% (nível: {quality_validation.get('level', 'UNKNOWN')})")
-            
-        except Exception as e:
-            logger.error(f"❌ Análise GIGANTE falhou: {str(e)}")
-            salvar_erro("analise_gigante", e, contexto=data)
-            
-            # Tenta recuperar dados salvos automaticamente
-            try:
-                dados_recuperados = auto_save_manager.consolidar_sessao(session_id)
-                logger.info(f"🔄 Dados recuperados automaticamente: {dados_recuperados}")
-                
-                return jsonify({
-                    'error': 'Falha na análise principal',
-                    'message': str(e),
-                    'dados_recuperados': True,
                     'session_id': session_id,
                     'relatorio_parcial': dados_recuperados,
                     'timestamp': datetime.now().isoformat(),
@@ -399,9 +332,9 @@ def analyze_market():
             'debug_info': {
                 'session_id': locals().get('session_id', 'unknown'),
                 'input_data': {
-                    'segmento': data.get('segmento'),
-                    'produto': data.get('produto'),
-                    'query': data.get('query')
+                    'segmento': data.get('segmento') if 'data' in locals() else None,
+                    'produto': data.get('produto') if 'data' in locals() else None,
+                    'query': data.get('query') if 'data' in locals() else None
                 },
                 'ai_status': ai_manager.get_provider_status(),
                 'search_status': production_search_manager.get_provider_status()
